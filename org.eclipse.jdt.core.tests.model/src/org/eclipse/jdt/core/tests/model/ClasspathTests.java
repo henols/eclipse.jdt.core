@@ -66,6 +66,7 @@ import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaElementDelta;
 import org.eclipse.jdt.core.IJavaModelMarker;
 import org.eclipse.jdt.core.IJavaModelStatus;
+import org.eclipse.jdt.core.IJavaModelStatusConstants;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.IPackageFragmentRoot;
@@ -76,8 +77,10 @@ import org.eclipse.jdt.core.tests.model.ClasspathInitializerTests.DefaultVariabl
 import org.eclipse.jdt.core.tests.util.Util;
 import org.eclipse.jdt.internal.core.ClasspathEntry;
 import org.eclipse.jdt.internal.core.JavaModelManager;
+import org.eclipse.jdt.internal.core.JavaModelStatus;
 import org.eclipse.jdt.internal.core.JavaProject;
 import org.eclipse.jdt.internal.core.UserLibraryClasspathContainer;
+import org.eclipse.jdt.internal.core.JavaModelManager.PerProjectInfo;
 import org.eclipse.jdt.internal.core.builder.State;
 import org.eclipse.team.core.RepositoryProvider;
 
@@ -7534,6 +7537,39 @@ public void testBug576735a() throws Exception {
 	} finally {
 		if ( project != null && project.exists())
 			this.deleteProject("P1");
+	}
+}
+
+public void testBuildpathError_truncation() throws CoreException {
+	try {
+		JavaProject project = (JavaProject) this.createJavaProject("P1", new String[] {}, "");
+
+		JavaModelManager javaModelManager = JavaModelManager.getJavaModelManager();
+		PerProjectInfo info = javaModelManager.getPerProjectInfo(project.getProject(), true);
+		JavaModelStatus status = new JavaModelStatus(IJavaModelStatusConstants.INVALID_PROJECT, project, "wqdafdsadfsdafsd");
+
+//		project.getProject().build(IncrementalProjectBuilder.FULL_BUILD, null);
+		waitForAutoBuild();
+
+//		project.
+//		info.setResolvedClasspath(null,null, null, null, status, 0,true);
+		waitUntilIndexesReady();
+		waitForAutoBuild();
+		info.setRawClasspath(null, null, null, status);
+		waitUntilIndexesReady();
+		waitForAutoBuild();
+		IMarker[] markers = project.getProject().findMarkers(IJavaModelMarker.BUILDPATH_PROBLEM_MARKER, false,
+				IResource.DEPTH_ONE);
+		// additionally see that we actually have 2 cycles for P0!
+		assertMarkers("Markers of P0",
+				"One or more cycles were detected in the build path of project 'P0'. The paths towards the cycle and cycle are:\n"
+						+ "->{P0, P2, P3, P1}\n" + "->{P0, P4, P5, P1}",
+				markers);
+		// this.startDeltas();
+
+	} finally {
+		// this.stopDeltas();
+		deleteProject("P1");
 	}
 }
 }
